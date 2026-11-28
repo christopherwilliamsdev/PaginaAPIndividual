@@ -8,62 +8,70 @@
 </head>
 <body class="bg-dark text-light">
 
-  <!-- Navbar -->
-  <nav class="navbar navbar-expand-lg navbar-dark bg-black border-bottom border-secondary sticky-top">
-    <div class="container">
-      <a class="navbar-brand fw-bold" href="#"> GameStore</a>
-      <div class="d-flex align-items-center gap-3">
-        <span id="infoUsuario" class="badge bg-info text-dark">sdfsda</span>
+  <header>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-black border-bottom border-secondary sticky-top" aria-label="Navegación principal">
+      <div class="container">
+        <a class="navbar-brand fw-bold" href="tienda.html"> GameStore</a>
+        <div class="d-flex align-items-center gap-2 gap-sm-3 flex-wrap">
+          <span id="infoUsuario" class="badge bg-info text-dark"></span>
 
-        <!-- Botón visible solo para Comprador -->
-        <button id="btnVerCarrito" class="btn btn-outline-warning btn-sm d-none" data-bs-toggle="modal" data-bs-target="#modalCarrito">
-           Carrito (<span id="contadorCarrito">0</span>)
-        </button>
+          <!-- Botón visible solo para Comprador -->
+          <button type="button" id="btnVerCarrito" class="btn btn-outline-warning btn-sm d-none" data-bs-toggle="modal" data-bs-target="#modalCarrito" aria-label="Abrir carrito de compras">
+            🛒 Carrito (<span id="contadorCarrito">0</span>)
+          </button>
 
-        <!-- Botón visible solo para Admin -->
-        <button id="btnAbrirImportar" class="btn btn-success btn-sm d-none" data-bs-toggle="modal" data-bs-target="#modalImportarRAWG">
-          + Importar desde RAWG
-        </button>
+          <!-- Botón visible solo para Admin -->
+          <button type="button" id="btnAbrirImportar" class="btn btn-success btn-sm d-none" data-bs-toggle="modal" data-bs-target="#modalImportarRAWG">
+            + Importar desde RAWG
+          </button>
 
-        <button id="btnCerrarSesion" class="btn btn-outline-danger btn-sm">Salir</button>
+          <button type="button" id="btnCerrarSesion" class="btn btn-outline-danger btn-sm">Salir</button>
+        </div>
       </div>
-    </div>
-  </nav>
+    </nav>
+  </header>
 
   <main class="container py-4">
-    <!-- Barra de filtros y búsqueda -->
-    <div class="row g-3 mb-4">
-      <div class="col-md-6">
-        <input type="text" id="inputBuscador" class="form-control" placeholder="Buscar videojuego por nombre...">
+    <!-- bbarra de filtros y búsqueda -->
+    <section aria-label="Filtros y búsqueda de videojuegos" class="mb-4">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label for="inputBuscador" class="visually-hidden">Buscar videojuego por nombre</label>
+          <input type="text" id="inputBuscador" class="form-control" placeholder="Buscar videojuego por nombre...">
+        </div>
+        <div class="col-md-4">
+          <label for="selectGenero" class="visually-hidden">Filtrar por género</label>
+          <select id="selectGenero" class="form-select">
+            <option value="todos">Todos los géneros</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <button type="button" id="btnRestablecerAPI" class="btn btn-outline-secondary w-100 d-none" title="Recargar catálogo base desde RAWG">
+            ↻ Reset API
+          </button>
+        </div>
       </div>
-      <div class="col-md-4">
-        <select id="selectGenero" class="form-select">
-          <option value="todos">Todos los géneros</option>
-        </select>
-      </div>
-      <div class="col-md-2">
-        <button id="btnRestablecerAPI" class="btn btn-outline-secondary w-100 d-none" title="Recargar catálogo base desde RAWG">
-          ↻ Reset API
-        </button>
-      </div>
-    </div>
+    </section>
 
-    <!-- Contenedor dinámico de videojuegos -->
-    <div id="contenedorJuegos" class="row g-4"></div>
+    
+    <section aria-label="Catálogo de videojuegos">
+      <div id="contenedorJuegos" class="row g-4"></div>
+    </section>
   </main>
 
-  <!-- MODAL ADMIN: Buscar e importar juegos reales desde RAWG -->
-  <div class="modal fade" id="modalImportarRAWG" tabindex="-1">
+  
+  <div class="modal fade" id="modalImportarRAWG" tabindex="-1" aria-labelledby="tituloModalImportar" aria-hidden="true">
     <div class="modal-dialog modal-lg">
       <div class="modal-content bg-dark text-light border-secondary">
         <div class="modal-header border-secondary">
-          <h5 class="modal-title">Importar videojuego desde RAWG API</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          <h2 class="modal-title fs-5" id="tituloModalImportar">Importar videojuego desde RAWG API</h2>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar ventana"></button>
         </div>
         <div class="modal-body">
           <div class="input-group mb-3">
-            <input type="text" id="inputBuscarRAWG" class="form-control" placeholder="Ej. Cyberpunk, Halo, Elden Ring...">
-            <button id="btnBuscarRAWG" class="btn btn-primary">Buscar en RAWG</button>
+            <label for="inputBuscarRAWG" class="visually-hidden">Nombre del juego en RAWG</label>
+            <input type="text" id="inputBuscarRAWG" class="form-control" placeholder="Ej. Grand Theft Auto VI, Elden Ring, Halo...">
+            <button type="button" id="btnBuscarRAWG" class="btn btn-primary">Buscar en RAWG</button>
           </div>
           <div id="resultadosRAWG" class="row g-3"></div>
         </div>
@@ -71,23 +79,22 @@
     </div>
   </div>
 
-  <!-- MODAL ADMIN: Editar precio y stock -->
-  <div class="modal fade" id="modalEditarJuego" tabindex="-1">
+  <div class="modal fade" id="modalEditarJuego" tabindex="-1" aria-labelledby="tituloModalEditar" aria-hidden="true">
     <div class="modal-dialog">
       <div class="modal-content bg-dark text-light border-secondary">
         <div class="modal-header border-secondary">
-          <h5 class="modal-title" id="tituloModalEditar">Editar juego</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          <h2 class="modal-title fs-5" id="tituloModalEditar">Editar juego</h2>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar ventana"></button>
         </div>
         <form id="formEditarJuego">
           <div class="modal-body">
             <input type="hidden" id="editId">
             <div class="mb-3">
-              <label class="form-label">Precio (MXN)</label>
+              <label for="editPrecio" class="form-label">Precio (MXN)</label>
               <input type="number" id="editPrecio" class="form-control" min="0" step="10" required>
             </div>
             <div class="mb-3">
-              <label class="form-label">Stock disponible (claves digitales)</label>
+              <label for="editStock" class="form-label">Stock disponible (claves digitales)</label>
               <input type="number" id="editStock" class="form-control" min="0" required>
             </div>
           </div>
@@ -99,13 +106,13 @@
     </div>
   </div>
 
-  <!-- MODAL COMPRADOR: Carrito de compras -->
-  <div class="modal fade" id="modalCarrito" tabindex="-1">
+  
+  <div class="modal fade" id="modalCarrito" tabindex="-1" aria-labelledby="tituloModalCarrito" aria-hidden="true">
     <div class="modal-dialog modal-lg">
       <div class="modal-content bg-dark text-light border-secondary">
         <div class="modal-header border-secondary">
-          <h5 class="modal-title"> Tu Carrito de Compras</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          <h2 class="modal-title fs-5" id="tituloModalCarrito"> Tu Carrito de Compras</h2>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar ventana"></button>
         </div>
         <div class="modal-body">
           <div id="listaCarrito"></div>
@@ -114,8 +121,8 @@
           </div>
         </div>
         <div class="modal-footer border-secondary">
-          <button id="btnVaciarCarrito" class="btn btn-outline-secondary">Vaciar</button>
-          <button id="btnConfirmarCompra" class="btn btn-success">Finalizar Compra</button>
+          <button type="button" id="btnVaciarCarrito" class="btn btn-outline-secondary">Vaciar</button>
+          <button type="button" id="btnConfirmarCompra" class="btn btn-success">Finalizar Compra</button>
         </div>
       </div>
     </div>

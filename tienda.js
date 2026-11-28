@@ -1,24 +1,60 @@
 // ==========================================
-// 1. CONFIGURACIÓN Y VALIDACIÓN DE SESIÓN
+// CONFIGURACIÓN Y SEGURIDAD DE SESIÓN
 // ==========================================
-const RAWG_API_KEY = "ef6bf8af61e24c71836fb551facaee69";
+const RAWG_API_KEY = "PEGA_AQUI_TU_API_KEY_DE_RAWG";
 const RAWG_BASE_URL = "https://api.rawg.io/api";
 const STORAGE_CATALOGO = "catalogo_gamestore_v1";
 const STORAGE_CARRITO = "carrito_gamestore_v1";
+const IMAGEN_FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='340'><rect width='100%' height='100%' fill='%23222'/><text x='50%' y='50%' fill='%23aaa' font-size='24' text-anchor='middle'>Sin Imagen</text></svg>";
 
-const sesion = JSON.parse(sessionStorage.getItem("sesionActiva"));
-if (!sesion) {
-  window.location.href = "index.html";
+function obtenerSesionValida() {
+  try {
+    const raw = sessionStorage.getItem("sesionActiva");
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || !["admin", "comprador"].includes(data.rol)) return null;
+    return data;
+  } catch {
+    return null;
+  }
 }
 
-const esAdmin = sesion.rol === "admin";
+let sesion = obtenerSesionValida();
+if (!sesion) {
+  window.location.replace("index.html");
+}
+
+// Revalida sesión si el usuario usa el botón Atrás/Adelante del navegador (bfcache)
+window.addEventListener("pageshow", () => {
+  sesion = obtenerSesionValida();
+  if (!sesion) {
+    window.location.replace("index.html");
+  }
+});
+
+function tieneRol(rolEsperado) {
+  const actual = obtenerSesionValida();
+  return actual && actual.rol === rolEsperado;
+}
+
+function escaparHTML(texto) {
+  return String(texto ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+const esAdmin = tieneRol("admin");
 let catalogo = [];
 let carrito = JSON.parse(sessionStorage.getItem(STORAGE_CARRITO)) || [];
 
 // ==========================================
-// 2. INICIALIZACIÓN DE INTERFAZ Y CATÁLOGO
+// INICIALIZACIÓN DE INTERFAZ Y CATÁLOGO
 // ==========================================
 document.addEventListener("DOMContentLoaded", async () => {
+  if (!sesion) return;
   configurarNavbarPorRol();
   await cargarCatalogoInicial();
   llenarSelectGeneros();
@@ -28,14 +64,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 function configurarNavbarPorRol() {
-  document.getElementById("infoUsuario").textContent =
-    `${sesion.nombre} (${sesion.rol.toUpperCase()})`;
+  const badge = document.getElementById("infoUsuario");
+  badge.textContent = `${sesion.nombre} (${sesion.rol.toUpperCase()})`;
 
   if (esAdmin) {
     document.getElementById("btnAbrirImportar").classList.remove("d-none");
     document.getElementById("btnRestablecerAPI").classList.remove("d-none");
+    document.getElementById("btnVerCarrito").classList.add("d-none");
   } else {
     document.getElementById("btnVerCarrito").classList.remove("d-none");
+    document.getElementById("btnAbrirImportar").classList.add("d-none");
+    document.getElementById("btnRestablecerAPI").classList.add("d-none");
   }
 }
 
@@ -46,35 +85,35 @@ async function cargarCatalogoInicial() {
     return;
   }
 
-  // Si es la primera vez, traemos 12 juegos populares desde RAWG
   try {
     const res = await fetch(`${RAWG_BASE_URL}/games?key=${RAWG_API_KEY}&page_size=12`);
     const data = await res.json();
 
-    catalogo = data.results.map((juego) => formatearJuegoRAWG(juego));
+    catalogo = (data.results || []).map((juego) => formatearJuegoRAWG(juego));
     guardarCatalogo();
   } catch (error) {
     console.error("Error al conectar con RAWG:", error);
     document.getElementById("contenedorJuegos").innerHTML =
-      `<div class="alert alert-danger">No se pudo conectar con RAWG API. Verifica tu API Key.</div>`;
+      `<div class="alert alert-danger" role="alert">No se pudo conectar con RAWG API. Verifica tu API Key.</div>`;
   }
 }
 
 function formatearJuegoRAWG(juego, precioCustom = null, stockCustom = null) {
-  // Generamos un precio base realista según calificación si no se especifica
   const precioBase = precioCustom ?? (juego.rating >= 4.2 ? 999 : 599);
   return {
-    id: juego.id,
-    nombre: juego.name,
-    imagen: juego.background_image || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='340'><rect width='100%' height='100%' fill='%23222'/><text x='50%' y='50%' fill='%23aaa' font-size='24' text-anchor='middle'>Sin Imagen</text></svg>",
-    rating: juego.rating || 0,
-    lanzamiento: juego.released || "N/A",
-    generos: juego.genres ? juego.genres.map((g) => g.name) : ["General"],
-    plataformas: juego.platforms
+    id: Number(juego.id),
+    nombre: String(juego.name || "Título sin nombre"),
+    imagen: juego.background_image || IMAGEN_FALLBACK,
+    rating: Number(juego.rating) || 0,
+    lanzamiento: String(juego.released || "N/A"),
+    generos: Array.isArray(juego.genres) && juego.genres.length > 0
+      ? juego.genres.map((g) => g.name)
+      : ["General"],
+    plataformas: Array.isArray(juego.platforms) && juego.platforms.length > 0
       ? juego.platforms.slice(0, 3).map((p) => p.platform.name).join(", ")
       : "PC",
-    precio: Number(precioBase),
-    stock: stockCustom !== null ? Number(stockCustom) : 10
+    precio: Math.max(0, Number(precioBase) || 0),
+    stock: Math.max(0, Number(stockCustom !== null ? stockCustom : 10) || 0)
   };
 }
 
@@ -83,7 +122,7 @@ function guardarCatalogo() {
 }
 
 // ==========================================
-// 3. RENDERIZADO DE TARJETAS SEGÚN ROL
+//  RENDERIZADO DE TARJETAS SEGÚN ROL
 // ==========================================
 function renderizarJuegos(lista) {
   const contenedor = document.getElementById("contenedorJuegos");
@@ -98,43 +137,48 @@ function renderizarJuegos(lista) {
     const col = document.createElement("div");
     col.className = "col-sm-6 col-md-4 col-lg-3";
 
+    const nombreSeguro = escaparHTML(juego.nombre);
+    const generoSeguro = escaparHTML(juego.generos[0] || "Juego");
+    const plataformasSeguras = escaparHTML(juego.plataformas);
+    const imagenSegura = escaparHTML(juego.imagen);
+
     const botonesAccion = esAdmin
       ? `
         <div class="d-flex gap-2 mt-auto">
-          <button class="btn btn-outline-info btn-sm w-50" onclick="abrirModalEditar(${juego.id})">Editar</button>
-          <button class="btn btn-outline-danger btn-sm w-50" onclick="eliminarJuego(${juego.id})">Eliminar</button>
+          <button type="button" class="btn btn-outline-info btn-sm w-50" onclick="abrirModalEditar(${juego.id})">Editar</button>
+          <button type="button" class="btn btn-outline-danger btn-sm w-50" onclick="eliminarJuego(${juego.id})">Eliminar</button>
         </div>`
       : `
-        <button class="btn btn-warning btn-sm w-100 mt-auto fw-semibold"
+        <button type="button" class="btn btn-warning btn-sm w-100 mt-auto fw-semibold"
           ${juego.stock <= 0 ? "disabled" : ""}
           onclick="agregarAlCarrito(${juego.id})">
           ${juego.stock > 0 ? "Agregar al carrito" : "Agotado"}
         </button>`;
 
     col.innerHTML = `
-      <div class="card bg-secondary bg-opacity-10 border-secondary text-light h-100">
-        <img src="${juego.imagen}" class="card-img-top" alt="${juego.nombre}" style="height: 165px; object-fit: cover;">
+      <article class="card bg-secondary bg-opacity-10 border-secondary text-light h-100">
+        <img src="${imagenSegura}" class="card-img-top" alt="Portada de ${nombreSeguro}" style="height: 165px; object-fit: cover;">
         <div class="card-body d-flex flex-column">
           <div class="d-flex justify-content-between align-items-start mb-1">
-            <span class="badge bg-primary">${juego.generos[0] || "Juego"}</span>
+            <span class="badge bg-primary">${generoSeguro}</span>
             <span class="badge bg-dark border border-secondary">⭐ ${juego.rating}</span>
           </div>
-          <h6 class="card-title fw-bold mb-1">${juego.nombre}</h6>
-          <p class="small text-white-50 mb-2">${juego.plataformas}</p>
+          <h3 class="card-title fs-6 fw-bold mb-1">${nombreSeguro}</h3>
+          <p class="small text-white-50 mb-2">${plataformasSeguras}</p>
           <div class="d-flex justify-content-between align-items-center mb-3">
             <span class="fs-5 fw-bold text-success">$${juego.precio} MXN</span>
             <span class="small text-white-50">Stock: ${juego.stock}</span>
           </div>
           ${botonesAccion}
         </div>
-      </div>
+      </article>
     `;
     contenedor.appendChild(col);
   });
 }
 
 // ==========================================
-// 4. FILTROS Y BÚSQUEDA LOCAL
+// FILTROS Y BÚSQUEDA LOCAL
 // ==========================================
 function llenarSelectGeneros() {
   const select = document.getElementById("selectGenero");
@@ -143,7 +187,8 @@ function llenarSelectGeneros() {
 
   select.innerHTML = `<option value="todos">Todos los géneros</option>`;
   generosUnicos.forEach((genero) => {
-    select.innerHTML += `<option value="${genero}">${genero}</option>`;
+    const gSeguro = escaparHTML(genero);
+    select.innerHTML += `<option value="${gSeguro}">${gSeguro}</option>`;
   });
 }
 
@@ -161,9 +206,11 @@ function filtrarCatalogo() {
 }
 
 // ==========================================
-// 5. FUNCIONES EXCLUSIVAS DE ADMIN (CRUD + RAWG)
+// FUNCIONES EXCLUSIVAS DE ADMIN (CRUD + RAWG)
 // ==========================================
 async function buscarEnRAWG() {
+  if (!tieneRol("admin")) return;
+
   const query = document.getElementById("inputBuscarRAWG").value.trim();
   if (!query) return;
 
@@ -172,31 +219,41 @@ async function buscarEnRAWG() {
 
   try {
     const res = await fetch(
-      `${RAWG_BASE_URL}/games?key=${RAWG_API_KEY}&search=${encodeURIComponent(query)}&page_size=6`
+      `${RAWG_BASE_URL}/games?key=${RAWG_API_KEY}&search=${encodeURIComponent(query)}&page_size=12&exclude_additions=true`
     );
     const data = await res.json();
     contenedor.innerHTML = "";
 
-    data.results.forEach((juego) => {
+    (data.results || []).forEach((juego) => {
       const yaExiste = catalogo.some((item) => item.id === juego.id);
+      const nombreSeguro = escaparHTML(juego.name);
+      const imgSegura = escaparHTML(juego.background_image || IMAGEN_FALLBACK);
+
       const col = document.createElement("div");
       col.className = "col-md-6";
       col.innerHTML = `
         <div class="card bg-secondary bg-opacity-25 border-secondary text-light p-2">
           <div class="d-flex gap-2 align-items-center">
-            <img src="${juego.background_image || ""}" style="width: 75px; height: 55px; object-fit: cover;" class="rounded">
+            <img src="${imgSegura}" alt="Portada de ${nombreSeguro}" style="width: 75px; height: 55px; object-fit: cover;" class="rounded">
             <div class="flex-grow-1 overflow-hidden">
-              <div class="fw-bold text-truncate">${juego.name}</div>
-              <small class="text-white-50">⭐ ${juego.rating} | ${juego.released || "N/A"}</small>
+              <div class="fw-bold text-truncate">${nombreSeguro}</div>
+              <small class="text-white-50">⭐ ${juego.rating || 0} | ${escaparHTML(juego.released || "N/A")}</small>
             </div>
-            <button class="btn btn-sm ${yaExiste ? "btn-secondary" : "btn-success"}"
+            <button type="button" class="btn btn-sm ${yaExiste ? "btn-secondary" : "btn-success"}"
               ${yaExiste ? "disabled" : ""}
-              onclick='importarJuegoRAWG(${JSON.stringify(juego).replace(/'/g, "&apos;")})'>
+              data-import-id="${juego.id}">
               ${yaExiste ? "En tienda" : "Importar"}
             </button>
           </div>
         </div>
       `;
+
+      if (!yaExiste) {
+        col.querySelector("[data-import-id]").addEventListener("click", () => {
+          importarJuegoRAWG(juego);
+        });
+      }
+
       contenedor.appendChild(col);
     });
   } catch (error) {
@@ -205,15 +262,25 @@ async function buscarEnRAWG() {
 }
 
 function importarJuegoRAWG(juegoRAWG) {
+  if (!tieneRol("admin")) {
+    alert("Acceso denegado: solo el rol Administrador puede importar juegos.");
+    return;
+  }
+
   const nuevoJuego = formatearJuegoRAWG(juegoRAWG, 799, 15);
   catalogo.unshift(nuevoJuego);
   guardarCatalogo();
   llenarSelectGeneros();
   filtrarCatalogo();
-  buscarEnRAWG(); // Actualiza estado del botón a "En tienda"
+  buscarEnRAWG();
 }
 
 function abrirModalEditar(id) {
+  if (!tieneRol("admin")) {
+    alert("Acceso denegado: solo el rol Administrador puede editar productos.");
+    return;
+  }
+
   const juego = catalogo.find((j) => j.id === id);
   if (!juego) return;
 
@@ -226,6 +293,11 @@ function abrirModalEditar(id) {
 }
 
 function eliminarJuego(id) {
+  if (!tieneRol("admin")) {
+    alert("Acceso denegado: solo el rol Administrador puede eliminar productos.");
+    return;
+  }
+
   if (!confirm("¿Eliminar este videojuego del catálogo?")) return;
   catalogo = catalogo.filter((j) => j.id !== id);
   guardarCatalogo();
@@ -234,9 +306,14 @@ function eliminarJuego(id) {
 }
 
 // ==========================================
-// 6. FUNCIONES EXCLUSIVAS DE COMPRADOR (CARRITO)
+// FUNCIONES EXCLUSIVAS DE COMPRADOR (CARRITO)
 // ==========================================
 function agregarAlCarrito(id) {
+  if (!tieneRol("comprador")) {
+    alert("Esta acción corresponde al rol Comprador.");
+    return;
+  }
+
   const juego = catalogo.find((j) => j.id === id);
   if (!juego || juego.stock <= 0) return;
 
@@ -276,27 +353,28 @@ function actualizarVistaCarrito() {
   lista.innerHTML = carrito.map((item) => `
     <div class="d-flex justify-content-between align-items-center border-bottom border-secondary py-2">
       <div>
-        <div class="fw-bold">${item.nombre}</div>
+        <div class="fw-bold">${escaparHTML(item.nombre)}</div>
         <small class="text-white-50">$${item.precio} MXN x ${item.cantidad}</small>
       </div>
       <div class="d-flex align-items-center gap-2">
         <span class="fw-bold text-success">$${item.precio * item.cantidad}</span>
-        <button class="btn btn-sm btn-outline-danger" onclick="quitarDelCarrito(${item.id})">✕</button>
+        <button type="button" class="btn btn-sm btn-outline-danger" aria-label="Quitar ${escaparHTML(item.nombre)} del carrito" onclick="quitarDelCarrito(${item.id})">✕</button>
       </div>
     </div>
   `).join("");
 }
 
 function quitarDelCarrito(id) {
+  if (!tieneRol("comprador")) return;
   carrito = carrito.filter((item) => item.id !== id);
   guardarCarrito();
   actualizarVistaCarrito();
 }
 
 function confirmarCompra() {
+  if (!tieneRol("comprador")) return;
   if (carrito.length === 0) return;
 
-  // Descontamos el stock real en el catálogo compartido
   carrito.forEach((item) => {
     const juego = catalogo.find((j) => j.id === item.id);
     if (juego) {
@@ -311,7 +389,7 @@ function confirmarCompra() {
   filtrarCatalogo();
 
   bootstrap.Modal.getInstance(document.getElementById("modalCarrito")).hide();
-  alert("✅ ¡Compra realizada con éxito! El inventario se ha actualizado.");
+  alert(" ¡Compra realizada con éxito! El inventario se ha actualizado.");
 }
 
 function guardarCarrito() {
@@ -319,7 +397,7 @@ function guardarCarrito() {
 }
 
 // ==========================================
-// 7. EVENTOS GENERALES
+// EVENTOS GENERALES
 // ==========================================
 function registrarEventos() {
   document.getElementById("inputBuscador").addEventListener("input", filtrarCatalogo);
@@ -327,18 +405,31 @@ function registrarEventos() {
 
   document.getElementById("btnCerrarSesion").addEventListener("click", () => {
     sessionStorage.removeItem("sesionActiva");
-    window.location.href = "index.html";
+    sessionStorage.removeItem(STORAGE_CARRITO);
+    window.location.replace("index.html");
   });
 
   // Eventos Admin
   document.getElementById("btnBuscarRAWG").addEventListener("click", buscarEnRAWG);
+  document.getElementById("inputBuscarRAWG").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      buscarEnRAWG();
+    }
+  });
+
   document.getElementById("formEditarJuego").addEventListener("submit", (e) => {
     e.preventDefault();
+    if (!tieneRol("admin")) return;
+
     const id = Number(document.getElementById("editId").value);
+    const precio = Math.max(0, Number(document.getElementById("editPrecio").value) || 0);
+    const stock = Math.max(0, Number(document.getElementById("editStock").value) || 0);
+
     const juego = catalogo.find((j) => j.id === id);
     if (juego) {
-      juego.precio = Number(document.getElementById("editPrecio").value);
-      juego.stock = Number(document.getElementById("editStock").value);
+      juego.precio = precio;
+      juego.stock = stock;
       guardarCatalogo();
       filtrarCatalogo();
     }
@@ -346,14 +437,16 @@ function registrarEventos() {
   });
 
   document.getElementById("btnRestablecerAPI").addEventListener("click", async () => {
+    if (!tieneRol("admin")) return;
     localStorage.removeItem(STORAGE_CATALOGO);
     await cargarCatalogoInicial();
     llenarSelectGeneros();
     filtrarCatalogo();
   });
 
-  // Eventos Comprador
+  // eveentos del Comprador
   document.getElementById("btnVaciarCarrito").addEventListener("click", () => {
+    if (!tieneRol("comprador")) return;
     carrito = [];
     guardarCarrito();
     actualizarVistaCarrito();
